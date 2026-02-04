@@ -68,7 +68,7 @@ const LabeledCurrencyInput: NextPage<{
         onChange={changeHandle}
         placeholder={placeholder} />
       <div className='p-2 space-x-1'>
-        <span>of</span>
+        <span>max</span>
         <span>{toDecimal(max, decimal)}</span>
         <span>{symbol}</span>
       </div>
@@ -263,6 +263,10 @@ const NewTransaction: NextPage<{
   const [message, setMessage] = useState<string[]>([])
   const [config, _] = useContext(ConfigContext)
 
+  const uniqueUtxos = Array.from(
+    new Map(utxos.map((u) => [`${u.txHash}#${u.index}`, u] as const)).values()
+  )
+
   const getMinLovelace = (recipient: Recipient): bigint => {
     const coinsPerUtxoWord = protocolParameters.coinsPerUtxoWord
     if (!coinsPerUtxoWord) throw new Error('No coinsPerUtxoWord')
@@ -295,7 +299,7 @@ const NewTransaction: NextPage<{
         _quantity && assets.set(id, _quantity - quantity)
       })
       return { lovelace, assets }
-    }, getBalanceByUTxOs(utxos))
+    }, getBalanceByUTxOs(uniqueUtxos))
 
   const buildUTxOSet = () => {
     const { Address, AssetName, BigNum, MultiAsset, ScriptHash,
@@ -303,22 +307,22 @@ const NewTransaction: NextPage<{
       TransactionUnspentOutput, TransactionUnspentOutputs } = cardano.lib
 
     const utxosSet = TransactionUnspentOutputs.new()
-    utxos.forEach((utxo) => {
+    uniqueUtxos.forEach((utxo) => {
       const value = cardano.lib.Value.new(BigNum.from_str(utxo.value.toString()))
       const address = Address.from_bech32(utxo.address)
       if (utxo.tokens.length > 0) {
         const multiAsset = MultiAsset.new()
         utxo.tokens.forEach((token) => {
           const asset = token.asset
-          const policyId = ScriptHash.from_bytes(Buffer.from(asset.policyId, 'hex'))
-          const assetName = AssetName.new(Buffer.from(asset.assetName, 'hex'))
+          const policyId = ScriptHash.from_bytes(Uint8Array.from(Buffer.from(asset.policyId, 'hex')))
+          const assetName = AssetName.new(Uint8Array.from(Buffer.from(asset.assetName, 'hex')))
           const quantity = BigNum.from_str(token.quantity.toString())
           multiAsset.set_asset(policyId, assetName, quantity)
         })
         value.set_multiasset(multiAsset)
       }
       const txUnspentOutput = TransactionUnspentOutput.new(
-        TransactionInput.new(TransactionHash.from_bytes(Buffer.from(utxo.txHash, 'hex')), BigNum.from_str(utxo.index.toString())),
+        TransactionInput.new(TransactionHash.from_bytes(Uint8Array.from(Buffer.from(utxo.txHash, 'hex'))), BigNum.from_str(utxo.index.toString())),
         TransactionOutput.new(address, value)
       )
       utxosSet.add(txUnspentOutput)
@@ -346,7 +350,7 @@ const NewTransaction: NextPage<{
       txBuilder.add_json_metadatum(cardano.getMessageLabel(), value)
     }
 
-    const address = changeAddress ? changeAddress : Address.from_bech32(utxos[0].address)
+    const address = changeAddress ? changeAddress : Address.from_bech32(uniqueUtxos[0].address)
     cardano.chainCoinSelection(txBuilder, buildUTxOSet(), address)
 
     return txBuilder.build_tx()
@@ -761,10 +765,14 @@ const SubmitTxButton: NextPage<{
 
   const clickHandle: MouseEventHandler<HTMLButtonElement> = () => {
     setIsSubmitting(true)
+    const bytes = transaction.to_bytes()
+    const arrayBuffer = new ArrayBuffer(bytes.byteLength)
+    new Uint8Array(arrayBuffer).set(bytes)
+    const body = new Blob([arrayBuffer], { type: 'application/cbor' })
     fetch(URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/cbor' },
-      body: transaction.to_bytes()
+      body
     })
       .then(async (response) => {
         if (!response.ok) {

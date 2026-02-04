@@ -6,20 +6,29 @@ import { NotificationContext, useNotification } from '../components/notification
 import { ApolloProvider } from '@apollo/client'
 import { createApolloClient } from '../cardano/query-api'
 
-const apolloClient = createApolloClient(config)
-
 function MyApp({ Component, pageProps }: AppProps) {
   const notification = useNotification()
+  const shouldUseApollo = config.queryAPI.type === 'graphql'
+  const apolloClient = shouldUseApollo ? createApolloClient(config) : undefined
 
   return (
     <ConfigContext.Provider value={[config, () => { }]}>
       <NotificationContext.Provider value={notification}>
-        <ApolloProvider client={apolloClient}>
-          <Head>
-            <title>{config.isMainnet ? 'ALDEA Tesoro' : 'ALDEA Tesoro - Testnet'}</title>
-          </Head>
-          <Component {...pageProps} />
-        </ApolloProvider>
+        {shouldUseApollo && apolloClient ? (
+          <ApolloProvider client={apolloClient}>
+            <Head>
+              <title>{config.isMainnet ? 'ALDEA Tesoro' : 'ALDEA Tesoro - Testnet'}</title>
+            </Head>
+            <Component {...pageProps} />
+          </ApolloProvider>
+        ) : (
+          <>
+            <Head>
+              <title>{config.isMainnet ? 'ALDEA Tesoro' : 'ALDEA Tesoro - Testnet'}</title>
+            </Head>
+            <Component {...pageProps} />
+          </>
+        )}
       </NotificationContext.Provider>
     </ConfigContext.Provider>
   )

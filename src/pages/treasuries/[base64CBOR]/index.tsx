@@ -9,11 +9,27 @@ import { NativeScriptInfoViewer, NativeScriptViewer } from '../../../components/
 import Link from 'next/link'
 import { useContext } from 'react'
 import { ConfigContext } from '../../../cardano/config'
-import { getAssetName, getBalanceByPaymentAddresses, getPolicyId, usePaymentAddressesQuery } from '../../../cardano/query-api'
+import { getAssetName, getBalanceByPaymentAddresses, getBalanceByUTxOs, getPolicyId, useBlockfrostAddressUTxOs, usePaymentAddressesQuery } from '../../../cardano/query-api'
 import { ADAAmount, AssetAmount } from '../../../components/currency'
 import { getTreasuryPath } from '../../../route'
 
 const ShowBalance: NextPage<{
+  cardano: Cardano
+  script: NativeScript
+  className?: string
+}> = ({ cardano, script, className }) => {
+  const [config, _] = useContext(ConfigContext)
+  const isBlockfrost = config.queryAPI.type === 'blockfrost'
+
+  if (isBlockfrost) {
+    return <ShowBalanceBlockfrost cardano={cardano} script={script} className={className} />
+  }
+
+  return <ShowBalanceGraphQL cardano={cardano} script={script} className={className} />
+
+}
+
+const ShowBalanceGraphQL: NextPage<{
   cardano: Cardano
   script: NativeScript
   className?: string
@@ -29,6 +45,48 @@ const ShowBalance: NextPage<{
   if (!paymentAddresses) return null
 
   const balance = getBalanceByPaymentAddresses(paymentAddresses)
+
+  return (
+    <div className={className}>
+      <div className='font-semibold'>Balance</div>
+      <ul className='divide-y rounded border'>
+        <li className='p-2'><ADAAmount lovelace={balance.lovelace} /></li>
+        {Array.from(balance.assets).map(([id, quantity]) => {
+          const symbol = Buffer.from(getAssetName(id), 'hex').toString('ascii')
+          return (
+            <li key={id} className='p-2'>
+              <AssetAmount
+                quantity={quantity}
+                decimals={0}
+                symbol={symbol} />
+              <div className='space-x-1'>
+                <span>Policy ID:</span>
+                <span>{getPolicyId(id)}</span>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+const ShowBalanceBlockfrost: NextPage<{
+  cardano: Cardano
+  script: NativeScript
+  className?: string
+}> = ({ cardano, script, className }) => {
+  const [config, _] = useContext(ConfigContext)
+  const address = cardano.getScriptAddress(script, config.isMainnet).to_bech32()
+  const { loading, error, data } = useBlockfrostAddressUTxOs(address)
+
+  if (loading) return null
+  if (error) return null
+
+  const utxos = data?.utxos
+  if (!utxos) return null
+
+  const balance = getBalanceByUTxOs(utxos)
 
   return (
     <div className={className}>
@@ -85,7 +143,8 @@ const GetTreasury: NextPage = () => {
 
   if (!cardano) return <Loading />;
   if (typeof base64CBOR !== 'string') return <ErrorMessage>Invalid URL</ErrorMessage>;
-  const parseResult = getResult(() => cardano.lib.NativeScript.from_bytes(Buffer.from(base64CBOR, 'base64')))
+  const scriptBytes = Uint8Array.from(Buffer.from(base64CBOR, 'base64'))
+  const parseResult = getResult(() => cardano.lib.NativeScript.from_bytes(scriptBytes))
   if (!parseResult.isOk) return <ErrorMessage>Invalid script</ErrorMessage>;
   const script = parseResult.data
 

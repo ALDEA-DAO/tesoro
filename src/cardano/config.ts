@@ -5,7 +5,13 @@ type GraphQL = {
   URI: string
 }
 
-type QueryAPI = GraphQL
+type Blockfrost = {
+  type: 'blockfrost'
+  projectId: string
+  baseURL: string
+}
+
+type QueryAPI = GraphQL | Blockfrost
 
 type Config = {
   isMainnet: boolean
@@ -14,10 +20,12 @@ type Config = {
   gunPeers: string[]
 }
 
-const defaultGraphQLMainnet = 'https://d.graphql-api.mainnet.dandelion.link'
-const defaultGraphQLTestnet = 'https://d.graphql-api.testnet.dandelion.link'
+const defaultGraphQLMainnet = 'https://graphql-api.mainnet.dandelion.link'
+const defaultGraphQLTestnet = 'https://graphql-api.testnet.dandelion.link'
 const defaultSubmitURIMainnet = 'https://adao.panl.org'
 const defaultSubmitURITestnet = 'https://testrelay1.panl.org'
+const defaultBlockfrostMainnet = 'https://cardano-mainnet.blockfrost.io/api/v0'
+const defaultBlockfrostTestnet = 'https://cardano-testnet.blockfrost.io/api/v0'
 
 const defaultConfig: Config = {
   isMainnet: true,
@@ -28,15 +36,22 @@ const defaultConfig: Config = {
 
 const createConfig = (): Config => {
   const isMainnet = !process.env.NEXT_PUBLIC_TESTNET
+  const forceBlockfrost = !!process.env.NEXT_PUBLIC_FORCE_BLOCKFROST
   const defaultGraphQL = isMainnet ? defaultGraphQLMainnet : defaultGraphQLTestnet
   const defaultSubmitURI = isMainnet ? defaultSubmitURIMainnet : defaultSubmitURITestnet
   const grapQLURI = process.env.NEXT_PUBLIC_GRAPHQL ?? defaultGraphQL
   const submitURI = process.env.NEXT_PUBLIC_SUBMIT ?? defaultSubmitURI
   const gunPeers = (process.env.NEXT_PUBLIC_GUN ?? '').split(';')
 
+  const blockfrostProjectId = process.env.NEXT_PUBLIC_BLOCKFROST_PROJECT_ID
+  const defaultBlockfrost = isMainnet ? defaultBlockfrostMainnet : defaultBlockfrostTestnet
+  const blockfrostBaseURL = process.env.NEXT_PUBLIC_BLOCKFROST_URL ?? defaultBlockfrost
+
   return {
     isMainnet,
-    queryAPI: { type: 'graphql', URI: grapQLURI },
+    queryAPI: (forceBlockfrost || blockfrostProjectId)
+      ? { type: 'blockfrost', projectId: blockfrostProjectId ?? '', baseURL: blockfrostBaseURL }
+      : { type: 'graphql', URI: grapQLURI },
     submitAPI: submitURI,
     gunPeers
   }

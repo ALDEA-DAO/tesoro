@@ -63,18 +63,14 @@ type RemoteData<T> = {
   data?: T
 }
 
-const isBlockfrost = (cfg: Config): cfg is Config & { queryAPI: { type: 'blockfrost'; projectId: string; baseURL: string } } => {
+const isBlockfrost = (cfg: Config): cfg is Config & { queryAPI: { type: 'blockfrost'; baseURL: string } } => {
   return cfg.queryAPI.type === 'blockfrost'
 }
 
 async function blockfrostFetchJSON<T>(cfg: Config, path: string): Promise<T> {
   if (!isBlockfrost(cfg)) throw new Error('Blockfrost is not configured')
   const url = `${cfg.queryAPI.baseURL.replace(/\/$/, '')}${path}`
-  const res = await fetch(url, {
-    headers: {
-      project_id: cfg.queryAPI.projectId
-    }
-  })
+  const res = await fetch(url)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Blockfrost error ${res.status}: ${body}`)

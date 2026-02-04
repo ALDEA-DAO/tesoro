@@ -7,7 +7,6 @@ type GraphQL = {
 
 type Blockfrost = {
   type: 'blockfrost'
-  projectId: string
   baseURL: string
 }
 
@@ -24,8 +23,7 @@ const defaultGraphQLMainnet = 'https://graphql-api.mainnet.dandelion.link'
 const defaultGraphQLTestnet = 'https://graphql-api.testnet.dandelion.link'
 const defaultSubmitURIMainnet = 'https://adao.panl.org'
 const defaultSubmitURITestnet = 'https://testrelay1.panl.org'
-const defaultBlockfrostMainnet = 'https://cardano-mainnet.blockfrost.io/api/v0'
-const defaultBlockfrostTestnet = 'https://cardano-testnet.blockfrost.io/api/v0'
+const defaultBlockfrostProxy = '/api/blockfrost'
 
 const defaultConfig: Config = {
   isMainnet: true,
@@ -43,14 +41,12 @@ const createConfig = (): Config => {
   const submitURI = process.env.NEXT_PUBLIC_SUBMIT ?? defaultSubmitURI
   const gunPeers = (process.env.NEXT_PUBLIC_GUN ?? '').split(';')
 
-  const blockfrostProjectId = process.env.NEXT_PUBLIC_BLOCKFROST_PROJECT_ID
-  const defaultBlockfrost = isMainnet ? defaultBlockfrostMainnet : defaultBlockfrostTestnet
-  const blockfrostBaseURL = process.env.NEXT_PUBLIC_BLOCKFROST_URL ?? defaultBlockfrost
+  const blockfrostBaseURL = process.env.NEXT_PUBLIC_BLOCKFROST_URL ?? defaultBlockfrostProxy
 
   return {
     isMainnet,
-    queryAPI: (forceBlockfrost || blockfrostProjectId)
-      ? { type: 'blockfrost', projectId: blockfrostProjectId ?? '', baseURL: blockfrostBaseURL }
+    queryAPI: forceBlockfrost
+      ? { type: 'blockfrost', baseURL: blockfrostBaseURL }
       : { type: 'graphql', URI: grapQLURI },
     submitAPI: submitURI,
     gunPeers
